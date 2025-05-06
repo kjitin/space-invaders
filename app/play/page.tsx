@@ -351,8 +351,8 @@ export default function SpaceInvadersGame() {
     // Create barriers
     const createBarriers = () => {
       const barriers: any[] = []
-      const barrierCount = 4
-      const barrierWidth = 60
+      const barrierCount = isMobile ? 3: 4
+      const barrierWidth = isMobile ? 50: 60
       const barrierHeight = 40
       const barrierY = canvas.height - 120
       const spacing = canvas.width / (barrierCount + 1)
@@ -1358,10 +1358,7 @@ export default function SpaceInvadersGame() {
       ctx.shadowBlur = 10
       ctx.fillStyle = "#FFFFFF"
       ctx.font = "bold 20px Arial"
-      ctx.fillText(`Score: ${score}`, 20, 30)
-      ctx.fillText(`Lives: ${lives}`, 20, 60)
-      ctx.fillText(`Level: ${level}`, 20, 90)
-      ctx.fillText(`High Score: ${highScore}`, canvas.width - 200, 30)
+
 
       // Reset shadow
       ctx.shadowBlur = 0
@@ -2451,7 +2448,7 @@ export default function SpaceInvadersGame() {
       if (!gameRef.current.active) return
 
       // Debug key state
-      setDebug(`Keys: Left=${keyMapRef.current["ArrowLeft"] || keyMapRef.current["a"] || keyMapRef.current["A"] ? "true" : "false"}, 
+      setDebug(`Keys: Left=${keyMapRef.current["ArrowLeft"] || keyMapRef.current["a"] || keyMapRef.current["A"] ? "true" : "false"},
                 Right=${keyMapRef.current["ArrowRight"] || keyMapRef.current["d"] || keyMapRef.current["D"] ? "true" : "false"}`)
 
       // Player speed decreases slightly at higher levels (harder to maneuver)

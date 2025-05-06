@@ -25,3 +25,11 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+.DS_Store
+app/.DS_Store
+.idea
+/.idea/misc.xml
+/.idea/modules.xml
+/.idea/space-invaders.iml
+/.idea/vcs.xml
