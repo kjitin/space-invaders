@@ -4,8 +4,6 @@ import { Button } from "@/components/ui/button"
 import { useAudio } from "@/components/web-audio-manager"
 import { AudioControls } from "@/components/audio-controls"
 import { useEffect } from "react"
-import { AdSense } from "@/components/adsense"
-import { ADSENSE_CONFIG } from "@/config/adsense"
 
 export default function Home() {
   const { playBackgroundMusic, playSound } = useAudio()
@@ -68,16 +66,6 @@ export default function Home() {
         >
           How to Play
         </Button>
-      </div>
-
-      {/* AdSense Banner */}
-      <div className="mt-8 w-full max-w-md">
-        <AdSense
-          adSlot={ADSENSE_CONFIG.HOME_SLOT}
-          adFormat="auto"
-          adStyle={{ minHeight: "250px", width: "100%" }}
-          className="bg-black/30 rounded-lg overflow-hidden"
-        />
       </div>
 
       <div className="mt-12 text-blue-300 text-sm">
