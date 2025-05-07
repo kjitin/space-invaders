@@ -1,5 +1,7 @@
 "use client"
 
+import type React from "react"
+
 import { useEffect, useRef, useState } from "react"
 import Link from "next/link"
 import { ArrowLeft, RefreshCw, ChevronLeft, ChevronRight } from "lucide-react"
@@ -34,6 +36,22 @@ export default function SpaceInvadersGame() {
   const nebulaRef = useRef<any[]>([])
   const screenShakeRef = useRef({ active: false, intensity: 0, duration: 0, startTime: 0 })
   const powerUpsRef = useRef<any[]>([])
+
+  const [touchStartX, setTouchStartX] = useState<number | null>(null)
+  const [touchMoveX, setTouchMoveX] = useState<number | null>(null)
+  const touchSensitivity = useRef(1.5) // Adjust sensitivity of touch movement
+  const lastTapTime = useRef(0)
+  const touchZoneHeight = useRef(0) // Will be set based on canvas height
+
+  // Add this function near the top of the component, after the state declarations
+  const updateHighScore = (currentScore: number) => {
+    if (currentScore > highScore) {
+      setHighScore(currentScore)
+      localStorage.setItem("spaceInvadersHighScore", currentScore.toString())
+      return true
+    }
+    return false
+  }
 
   // Initialize audio context on user interaction
   useEffect(() => {
@@ -74,10 +92,15 @@ export default function SpaceInvadersGame() {
 
   // Check if device is mobile
   useEffect(() => {
-    setIsMobile(window.innerWidth < 768)
-    const handleResize = () => setIsMobile(window.innerWidth < 768)
-    window.addEventListener("resize", handleResize)
-    return () => window.removeEventListener("resize", handleResize)
+    const checkMobile = () => {
+      const isTouchDevice = "ontouchstart" in window || navigator.maxTouchPoints > 0
+      const isSmallScreen = window.innerWidth < 768
+      setIsMobile(isTouchDevice || isSmallScreen)
+    }
+
+    checkMobile()
+    window.addEventListener("resize", checkMobile)
+    return () => window.removeEventListener("resize", checkMobile)
   }, [])
 
   // Load high score from localStorage
@@ -1484,19 +1507,31 @@ export default function SpaceInvadersGame() {
         ctx.fillStyle = "#FF0000"
         ctx.font = "bold 48px Arial"
         ctx.textAlign = "center"
-        ctx.fillText("GAME OVER", canvas.width / 2, canvas.height / 2 - 40)
+        ctx.fillText("GAME OVER", canvas.width / 2, canvas.height / 2 - 60)
 
         // Draw score
         ctx.shadowColor = "rgba(0, 150, 255, 0.7)"
         ctx.shadowBlur = 10
         ctx.fillStyle = "#FFFFFF"
         ctx.font = "24px Arial"
-        ctx.fillText(`Final Score: ${score}`, canvas.width / 2, canvas.height / 2 + 20)
+        ctx.fillText(`Final Score: ${score}`, canvas.width / 2, canvas.height / 2)
 
-        // Draw high score
+        // Draw high score with more emphasis
         if (score >= highScore) {
-          ctx.fillStyle = "#FFFF00"
-          ctx.fillText("NEW HIGH SCORE!", canvas.width / 2, canvas.height / 2 + 60)
+          ctx.shadowColor = "rgba(255, 215, 0, 0.9)" // Gold shadow
+          ctx.shadowBlur = 15
+          ctx.fillStyle = "#FFDF00" // Gold color
+          ctx.font = "bold 28px Arial"
+          ctx.fillText("NEW HIGH SCORE!", canvas.width / 2, canvas.height / 2 + 40)
+
+          // Add animation effect for new high score
+          const pulseFactor = 1 + Math.sin(Date.now() / 200) * 0.1
+          ctx.font = `bold ${28 * pulseFactor}px Arial`
+          ctx.fillText(score.toString(), canvas.width / 2, canvas.height / 2 + 80)
+        } else {
+          ctx.fillStyle = "#AAAAFF"
+          ctx.font = "20px Arial"
+          ctx.fillText(`High Score: ${highScore}`, canvas.width / 2, canvas.height / 2 + 40)
         }
 
         // Reset text alignment and shadow
@@ -1560,7 +1595,15 @@ export default function SpaceInvadersGame() {
         if (enemy.y + enemy.height / 2 > player.y - player.height) {
           gameRef.current.active = false
           setGameState("gameOver")
-          setMessage("Game Over! Aliens have invaded!")
+
+          // Update high score
+          if (score > highScore) {
+            setHighScore(score)
+            localStorage.setItem("spaceInvadersHighScore", score.toString())
+            setMessage("Game Over! Aliens have invaded! NEW HIGH SCORE: " + score)
+          } else {
+            setMessage("Game Over! Aliens have invaded!")
+          }
 
           // Trigger screen shake
           screenShakeRef.current = {
@@ -2105,6 +2148,13 @@ export default function SpaceInvadersGame() {
                 setGameState("gameOver")
                 setMessage("Game Over! You've been destroyed!")
 
+                // Update high score
+                if (score > highScore) {
+                  setHighScore(score)
+                  localStorage.setItem("spaceInvadersHighScore", score.toString())
+                  setMessage("Game Over! NEW HIGH SCORE: " + score)
+                }
+
                 // Create a bigger final explosion
                 if (ctx) {
                   const primaryColor = "rgba(0, 170, 255"
@@ -2604,33 +2654,149 @@ export default function SpaceInvadersGame() {
     }
   }
 
+  // Handle touch start on canvas
+  const handleTouchStart = (e: React.TouchEvent) => {
+    if (!gameRef.current.active && gameState === "ready") {
+      // Start game on first touch
+      gameRef.current.active = true
+      setGameState("playing")
+      setMessage("Game started!")
+      return
+    }
+
+    if (gameState !== "playing") return
+
+    const touch = e.touches[0]
+    setTouchStartX(touch.clientX)
+
+    // Check if touch is in the bottom third of the screen (shooting zone)
+    const rect = canvasRef.current?.getBoundingClientRect()
+    if (rect) {
+      touchZoneHeight.current = rect.height / 3
+
+      // If touch is in the bottom third, it's a shoot action
+      if (touch.clientY > rect.top + rect.height - touchZoneHeight.current) {
+        shoot()
+      }
+
+      // Double tap detection for shooting
+      const now = Date.now()
+      if (now - lastTapTime.current < 300) {
+        shoot()
+      }
+      lastTapTime.current = now
+    }
+
+    // Prevent default to avoid scrolling
+    e.preventDefault()
+  }
+
+  // Handle touch move on canvas
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (gameState !== "playing" || touchStartX === null || !playerRef.current) return
+
+    const touch = e.touches[0]
+    setTouchMoveX(touch.clientX)
+
+    // Calculate movement based on touch difference
+    const moveDelta = (touch.clientX - touchStartX) * touchSensitivity.current
+
+    // Move player based on touch movement
+    if (canvasRef.current) {
+      const canvasRect = canvasRef.current.getBoundingClientRect()
+      const playerWidthHalf = playerRef.current.width / 2
+
+      // Calculate new position with bounds checking
+      let newX = playerRef.current.x + moveDelta
+      newX = Math.max(playerWidthHalf, Math.min(canvasRef.current.width - playerWidthHalf, newX))
+
+      // Update player position
+      playerRef.current.x = newX
+    }
+
+    // Update touch start for continuous movement
+    setTouchStartX(touch.clientX)
+
+    // Prevent default to avoid scrolling
+    e.preventDefault()
+  }
+
+  // Handle touch end on canvas
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    setTouchStartX(null)
+    setTouchMoveX(null)
+
+    // Prevent default
+    e.preventDefault()
+  }
+
   // Handle mobile controls
   const moveLeft = () => {
     if (playerRef.current && gameRef.current.active) {
       // Player speed decreases slightly at higher levels (harder to maneuver)
-      const playerSpeed = level > 8 ? playerRef.current.speed * 1.6 : playerRef.current.speed * 2
+      const playerSpeed = level > 8 ? playerRef.current.speed * 1.8 : playerRef.current.speed * 2.2
 
-      playerRef.current.x -= playerSpeed
-      if (playerRef.current.x < playerRef.current.width / 2) {
-        playerRef.current.x = playerRef.current.width / 2
+      // Add haptic feedback if available
+      if (navigator.vibrate) {
+        navigator.vibrate(20)
       }
+
+      // Continuous movement using requestAnimationFrame
+      const moveLeftContinuous = () => {
+        if (playerRef.current && keyMapRef.current["ArrowLeft"]) {
+          playerRef.current.x -= playerSpeed
+          if (playerRef.current.x < playerRef.current.width / 2) {
+            playerRef.current.x = playerRef.current.width / 2
+          }
+          requestAnimationFrame(moveLeftContinuous)
+        }
+      }
+
+      // Set key state for continuous movement
+      keyMapRef.current["ArrowLeft"] = true
+      moveLeftContinuous()
     }
   }
 
   const moveRight = () => {
     if (playerRef.current && gameRef.current.active && canvasRef.current) {
       // Player speed decreases slightly at higher levels (harder to maneuver)
-      const playerSpeed = level > 8 ? playerRef.current.speed * 1.6 : playerRef.current.speed * 2
+      const playerSpeed = level > 8 ? playerRef.current.speed * 1.8 : playerRef.current.speed * 2.2
 
-      playerRef.current.x += playerSpeed
-      if (playerRef.current.x > canvasRef.current.width - playerRef.current.width / 2) {
-        playerRef.current.x = canvasRef.current.width - playerRef.current.width / 2
+      // Add haptic feedback if available
+      if (navigator.vibrate) {
+        navigator.vibrate(20)
       }
+
+      // Continuous movement using requestAnimationFrame
+      const moveRightContinuous = () => {
+        if (playerRef.current && canvasRef.current && keyMapRef.current["ArrowRight"]) {
+          playerRef.current.x += playerSpeed
+          if (playerRef.current.x > canvasRef.current.width - playerRef.current.width / 2) {
+            playerRef.current.x = canvasRef.current.width - playerRef.current.width / 2
+          }
+          requestAnimationFrame(moveRightContinuous)
+        }
+      }
+
+      // Set key state for continuous movement
+      keyMapRef.current["ArrowRight"] = true
+      moveRightContinuous()
     }
+  }
+
+  // Add function to stop movement when touch ends
+  const stopMovement = (direction: "left" | "right") => {
+    keyMapRef.current[direction === "left" ? "ArrowLeft" : "ArrowRight"] = false
   }
 
   const shoot = () => {
     if (gameRef.current.active && playerRef.current) {
+      // Add haptic feedback if available
+      if (navigator.vibrate) {
+        navigator.vibrate([30, 30, 30])
+      }
+
       // Different shooting based on weapon type
       if (playerRef.current.weaponType === "double") {
         // Double shot - two projectiles side by side
@@ -2693,6 +2859,11 @@ export default function SpaceInvadersGame() {
 
   // Function to restart the game
   const restartGame = () => {
+    // Make sure high score is saved before restarting
+    if (score > highScore) {
+      localStorage.setItem("spaceInvadersHighScore", score.toString())
+    }
+
     setScore(0)
     setLives(3)
     setLevel(1)
@@ -2773,7 +2944,9 @@ export default function SpaceInvadersGame() {
           className="w-full max-w-[800px] h-[600px] bg-black rounded-xl shadow-2xl"
           style={{ touchAction: "none" }}
           onClick={handleCanvasClick}
-          onTouchStart={handleCanvasClick}
+          onTouchStart={handleTouchStart}
+          onTouchMove={handleTouchMove}
+          onTouchEnd={handleTouchEnd}
         />
 
         {gameState === "gameOver" && (
@@ -2787,18 +2960,41 @@ export default function SpaceInvadersGame() {
 
         {/* Mobile controls */}
         {isMobile && gameState === "playing" && (
-          <div className="w-full max-w-[800px] mt-4 flex justify-between">
-            <div className="flex gap-2">
-              <Button className="h-16 w-16 bg-blue-800/50 rounded-full" onTouchStart={moveLeft} onClick={moveLeft}>
-                <ChevronLeft size={32} />
-              </Button>
-              <Button className="h-16 w-16 bg-blue-800/50 rounded-full" onTouchStart={moveRight} onClick={moveRight}>
-                <ChevronRight size={32} />
+          <div className="w-full max-w-[800px] mt-4 flex flex-col gap-4">
+            {/* Touch instructions */}
+            <div className="text-center text-white text-sm bg-blue-900/30 rounded-lg p-2">
+              <p>Swipe to move • Tap bottom area to shoot • Double tap anywhere to shoot</p>
+            </div>
+
+            {/* Control buttons with improved size and feedback */}
+            <div className="flex justify-between">
+              <div className="flex gap-4">
+                <Button
+                  className="h-20 w-20 bg-blue-800/70 hover:bg-blue-700/90 active:bg-blue-600 rounded-full shadow-lg transform active:scale-95 transition-transform"
+                  onTouchStart={moveLeft}
+                  onTouchEnd={() => stopMovement("left")}
+                  aria-label="Move Left"
+                >
+                  <ChevronLeft size={36} />
+                </Button>
+                <Button
+                  className="h-20 w-20 bg-blue-800/70 hover:bg-blue-700/90 active:bg-blue-600 rounded-full shadow-lg transform active:scale-95 transition-transform"
+                  onTouchStart={moveRight}
+                  onTouchEnd={() => stopMovement("right")}
+                  aria-label="Move Right"
+                >
+                  <ChevronRight size={36} />
+                </Button>
+              </div>
+              <Button
+                className="h-20 w-20 bg-red-600/70 hover:bg-red-500/90 active:bg-red-700 rounded-full shadow-lg transform active:scale-95 transition-transform"
+                onTouchStart={shoot}
+                onTouchEnd={(e) => e.preventDefault()}
+                aria-label="Fire"
+              >
+                <span className="text-xl font-bold">Fire</span>
               </Button>
             </div>
-            <Button className="h-16 w-16 bg-red-600/50 rounded-full" onTouchStart={shoot} onClick={shoot}>
-              Fire
-            </Button>
           </div>
         )}
       </div>
