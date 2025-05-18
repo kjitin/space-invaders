@@ -29,6 +29,7 @@ export default function SpaceInvadersGame() {
   const lastTimeRef = useRef<number>(0)
   const keyMapRef = useRef<{ [key: string]: boolean }>({})
   const [isMobile, setIsMobile] = useState(false)
+  let isMobileDevice = false;
   const [debug, setDebug] = useState("")
   const explosionParticlesRef = useRef<any[]>([])
   const difficultyRef = useRef<number>(1)
@@ -94,7 +95,8 @@ export default function SpaceInvadersGame() {
   useEffect(() => {
     const checkMobile = () => {
       const isTouchDevice = "ontouchstart" in window || navigator.maxTouchPoints > 0
-      const isSmallScreen = window.innerWidth < 768
+      const isSmallScreen = window.innerWidth < 768 || screen.width < 768
+      isMobileDevice = isTouchDevice || isSmallScreen
       setIsMobile(isTouchDevice || isSmallScreen)
     }
 
@@ -351,8 +353,8 @@ export default function SpaceInvadersGame() {
     // Create barriers
     const createBarriers = () => {
       const barriers: any[] = []
-      const barrierCount = isMobile ? 3: 4
-      const barrierWidth = isMobile ? 50: 60
+      const barrierCount = isMobileDevice ? 3: 4
+      const barrierWidth = isMobileDevice ? 50: 60
       const barrierHeight = 40
       const barrierY = canvas.height - 120
       const spacing = canvas.width / (barrierCount + 1)
@@ -2956,7 +2958,7 @@ export default function SpaceInvadersGame() {
         )}
 
         {/* Mobile controls */}
-        {isMobile && gameState === "playing" && (
+        {isMobileDevice && gameState === "playing" && (
           <div className="w-full max-w-[800px] mt-4 flex flex-col gap-4">
             {/* Touch instructions */}
             <div className="text-center text-white text-sm bg-blue-900/30 rounded-lg p-2">
