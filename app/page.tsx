@@ -49,7 +49,7 @@ export default function Home() {
       <div className="text-center mb-8">
         <h1 className="text-5xl font-bold text-white mb-4">Space Invaders 3D</h1>
         <p className="text-xl text-blue-200 max-w-md mx-auto">
-          Defend Earth from alien invaders in this classic arcade game reimagined in 3D!
+          Defend Earth from alien invaders in this classic arcade game !
         </p>
       </div>
 
